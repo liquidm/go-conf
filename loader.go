@@ -5,6 +5,7 @@ package conf
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -23,6 +24,7 @@ type Loader struct {
 
 	//Number of arguments that should not be considered as config paths.
 	//It is only used with UseArgumentPaths flag.
+	//Defaults to UseFlag.
 	PreservedArgs int
 
 	lookupPaths  []string
@@ -42,6 +44,7 @@ const (
 
 	//Reads config paths from arguments passed to executable
 	//If number of arguments is not greater than PreservedArgs
+	//or if PreservedArgs is set to UseFlag (default) and len(flag.Args()) == 0
 	//it fallbacks to default behaviour.
 	UseArgumentPaths int = 1 << iota
 
@@ -55,12 +58,18 @@ const (
 	IgnoreInvalidFiles int = 1 << iota
 )
 
+const (
+	//Use flag.Args as config paths passed by arguments
+	UseFlag int = -1
+)
+
 //Creates new loader.
 //NewLoader can return error if it fail to identify executable folder
 //and UseExecutablePath flag is set.
 func NewLoader(flags int) (*Loader, error) {
 	loader := &Loader{
-		loaderFlags: flags,
+		loaderFlags:   flags,
+		PreservedArgs: UseFlag,
 	}
 
 	if loader.Implements(UseExecutablePath) {
@@ -127,10 +136,17 @@ func (l *Loader) SkippedPaths() []string {
 
 func (l *Loader) createLookupPaths() {
 	if l.Implements(UseArgumentPaths) {
-		splitSize := l.PreservedArgs + 1
-		if len(os.Args) > splitSize {
-			l.lookupPaths = os.Args[splitSize:]
-			return
+		if l.PreservedArgs == UseFlag {
+			flagArgs := flag.Args()
+			if len(flagArgs) > 0 {
+				l.lookupPaths = flagArgs
+			}
+		} else {
+			splitSize := l.PreservedArgs + 1
+			if len(os.Args) > splitSize {
+				l.lookupPaths = os.Args[splitSize:]
+				return
+			}
 		}
 	}
 
